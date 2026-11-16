@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "SocialFilter",
+  "version": "0.1.0",
+  "description": "Filters visible posts on Instagram and Facebook using local rules.",
+  "permissions": ["storage"],
+  "content_scripts": [
+    {
+      "matches": ["https://www.instagram.com/*", "https://www.facebook.com/*", "https://m.facebook.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "options.html"
+}

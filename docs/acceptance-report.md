@@ -28,9 +28,9 @@
 - `550596d` P3 Android 原型與 APK 建置
 - `78558a8` P4 共用 bundle 決策驗證
 
-未進行 push：此專案 `git remote -v` 為空，沒有可推送的目的地。沒有建立遠端儲存庫，也沒有執行 CI。
+使用者提供遠端網址後，已設定 `origin` 為 `https://github.com/chengyipersonal0219/socialmedia.git`，並推送 `codex/social-filter-mvp` 分支。沒有執行 CI。
 
-附檔要求禁止遠端寫入，而使用者提供的 AGENTS 指示要求驗收後 push；以使用者指示為準。由於沒有設定 remote，只能完成本機提交，無法推送。
+附檔要求禁止遠端寫入，而使用者提供的 AGENTS 指示要求驗收後 push；以使用者指示及後續提供的儲存庫網址為準。未建立 PR 或部署服務。
 
 ## 主要限制與下一步
 

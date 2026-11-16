@@ -8,6 +8,7 @@ interface ProcessState {
   display: string;
   priority: string;
   placeholder?: HTMLElement;
+  placeholderObserver?: IntersectionObserver;
   revealed: boolean;
   action: FilterDecision['action'];
 }
@@ -20,6 +21,11 @@ export class DomRuntime {
   private disposed = false;
   private version = 0;
   private counts = { collapse: 0, hide: 0 };
+  private lastFeedHintAt = 0;
+  private feedHintPending = false;
+  private readonly onFeedScroll = (event: Event): void => {
+    if (event.isTrusted) this.hintFeedLoad();
+  };
 
   constructor(private readonly adapter: SiteAdapter, private rules: RuleSet, private readonly root: Document = document) {
     this.observer = new MutationObserver((records) => {
@@ -45,6 +51,7 @@ export class DomRuntime {
       }
     });
     this.observer.observe(root, { childList: true, characterData: true, subtree: true });
+    if (adapter.site === 'facebook') root.defaultView?.addEventListener('scroll', this.onFeedScroll, { passive: true });
     this.enqueue(root.documentElement);
   }
 
@@ -84,6 +91,25 @@ export class DomRuntime {
       if (processed >= 50) break;
     }
     if (this.pending.size) this.schedule();
+    if (this.adapter.site === 'facebook') this.hintFeedLoad();
+  }
+
+  private hintFeedLoad(): void {
+    const view = this.root.defaultView;
+    const scroller = this.root.scrollingElement ?? this.root.documentElement;
+    if (!view || this.disposed || this.feedHintPending || this.root.visibilityState === 'hidden') return;
+    if (scroller.scrollHeight < view.innerHeight * 3) return;
+    if (scroller.scrollHeight - (view.scrollY + view.innerHeight) > view.innerHeight * 2) return;
+    const now = Date.now();
+    if (now - this.lastFeedHintAt < 2500) return;
+    this.lastFeedHintAt = now;
+    this.feedHintPending = true;
+    queueMicrotask(() => {
+      this.feedHintPending = false;
+      if (this.disposed) return;
+      view.dispatchEvent(new Event('scroll'));
+      this.root.dispatchEvent(new Event('scroll'));
+    });
   }
 
   private process(element: Element): void {
@@ -103,7 +129,34 @@ export class DomRuntime {
   private apply(element: Element, state: ProcessState, decision: FilterDecision): void {
     state.action = decision.action;
     if (decision.action === 'show' || state.revealed) return;
+    const bounds = element.getBoundingClientRect();
+    const view = element.ownerDocument.defaultView;
+    const visibleLargeHide = this.adapter.site === 'facebook' && decision.action === 'hide' && view !== null &&
+      bounds.height >= 120 && bounds.bottom > 0 && bounds.top < view.innerHeight;
+    const anchor = visibleLargeHide ? null : this.viewportAnchor(element);
+    if (visibleLargeHide) {
+      const placeholder = element.ownerDocument.createElement('div');
+      placeholder.textContent = 'SocialFilter：已隱藏內容';
+      placeholder.setAttribute('data-socialfilter-placeholder', 'true');
+      placeholder.style.cssText = `height:${Math.ceil(bounds.height)}px;box-sizing:border-box;padding:8px;color:#666`;
+      element.before(placeholder);
+      state.placeholder = placeholder;
+      if (typeof IntersectionObserver === 'function') {
+        const observer = new IntersectionObserver((entries) => {
+          if (entries[0]?.isIntersecting || !state.placeholder) return;
+          observer.disconnect();
+          state.placeholderObserver = undefined;
+          const currentAnchor = this.viewportAnchor(placeholder);
+          placeholder.remove();
+          state.placeholder = undefined;
+          this.restoreViewport(currentAnchor);
+        });
+        state.placeholderObserver = observer;
+        observer.observe(placeholder);
+      }
+    }
     (element as HTMLElement).style.setProperty('display', 'none', 'important');
+    this.restoreViewport(anchor);
     if (decision.action === 'hide') this.counts.hide += 1;
     if (decision.action === 'collapse') {
       this.counts.collapse += 1;
@@ -122,6 +175,26 @@ export class DomRuntime {
     }
   }
 
+  private viewportAnchor(excluded: Element): { element: Element; top: number } | null {
+    const view = this.root.defaultView;
+    if (!view || typeof this.root.elementFromPoint !== 'function') return null;
+    for (const fraction of [0.5, 0.75, 0.25]) {
+      const element = this.root.elementFromPoint(view.innerWidth / 2, view.innerHeight * fraction);
+      if (element && element !== excluded && !excluded.contains(element)) return { element, top: element.getBoundingClientRect().top };
+    }
+    return null;
+  }
+
+  private restoreViewport(anchor: { element: Element; top: number } | null): void {
+    if (!anchor) return;
+    const view = this.root.defaultView;
+    view?.requestAnimationFrame(() => {
+      if (!anchor.element.isConnected) return;
+      const shift = anchor.element.getBoundingClientRect().top - anchor.top;
+      if (Math.abs(shift) > 1) view.scrollBy(0, shift);
+    });
+  }
+
   private restoreDisplay(element: Element, state: ProcessState): void {
     const style = (element as HTMLElement).style;
     if (state.display) style.setProperty('display', state.display, state.priority);
@@ -131,6 +204,7 @@ export class DomRuntime {
   private restore(element: Element): void {
     const state = this.states.get(element);
     if (!state) return;
+    state.placeholderObserver?.disconnect();
     this.restoreDisplay(element, state);
     state.placeholder?.remove();
     this.states.delete(element);
@@ -140,6 +214,7 @@ export class DomRuntime {
     if (this.disposed) return;
     this.disposed = true;
     this.observer.disconnect();
+    this.root.defaultView?.removeEventListener('scroll', this.onFeedScroll);
     for (const element of this.states.keys()) this.restore(element);
     this.pending.clear();
   }

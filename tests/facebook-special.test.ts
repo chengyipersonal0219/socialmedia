@@ -35,6 +35,8 @@ it('hides a header-marked sponsor and Reel entry while preserving an ordinary po
   const runtime = new DomRuntime(facebookAdapter, { ...DEFAULT_RULE_SET, rules: [sponsor, reel] });
   await tick();
   expect(ad.style.display).toBe('none');
+  expect((ad.previousElementSibling as HTMLElement).getAttribute('data-socialfilter-placeholder')).toBe('true');
+  expect((ad.previousElementSibling as HTMLElement).style.height).toBe('674px');
   expect(ordinary.style.display).toBe('');
   expect(reelTab.style.display).toBe('none');
   expect(reelCard.style.display).toBe('none');
@@ -42,6 +44,7 @@ it('hides a header-marked sponsor and Reel entry while preserving an ordinary po
   sponsorLabel.textContent = '一般';
   await tick();
   expect(ad.style.display).toBe('');
+  expect(document.querySelector('[data-socialfilter-placeholder]')).toBeNull();
   sponsorLabel.textContent = '贊助';
   await tick();
   expect(ad.style.display).toBe('none');
@@ -51,4 +54,21 @@ it('hides a header-marked sponsor and Reel entry while preserving an ordinary po
   expect(reelTab.style.display).toBe('');
   expect(reelCard.style.display).toBe('');
   runtime.dispose();
+});
+
+it('hints Facebook to load near the feed end without moving the viewport', async () => {
+  document.body.innerHTML = '<div role="feed"><div role="article">一般貼文</div></div>';
+  vi.spyOn(Date, 'now').mockReturnValue(10000);
+  vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(800);
+  vi.spyOn(window, 'scrollY', 'get').mockReturnValue(1000);
+  vi.spyOn(document.documentElement, 'scrollHeight', 'get').mockReturnValue(2600);
+  const scrollBy = vi.spyOn(window, 'scrollBy').mockImplementation(() => {});
+  const onScroll = vi.fn();
+  window.addEventListener('scroll', onScroll);
+  const runtime = new DomRuntime(facebookAdapter, { ...DEFAULT_RULE_SET, rules: [] });
+  await tick();
+  expect(onScroll).toHaveBeenCalledTimes(1);
+  expect(scrollBy).not.toHaveBeenCalled();
+  runtime.dispose();
+  window.removeEventListener('scroll', onScroll);
 });

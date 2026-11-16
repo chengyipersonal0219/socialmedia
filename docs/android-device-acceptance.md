@@ -20,6 +20,8 @@
 | 明確標示「贊助」的貼文隱藏 | 不適用 | PASS，實機顯示範圍縮減，一般貼文仍顯示 |
 | Reels 分頁入口隱藏 | 不適用 | PASS，入口圖示消失；原欄位仍有空白背景 |
 | 動態牆 Reel 卡片／區塊 | 不適用 | Reel 連結 fixture PASS；區塊及實站 NOT RUN |
+| 隱藏內容時捲動穩定 | 不適用 | PASS，使用者回報滑過隱藏位置目前不再跳動 |
+| 接近底部時繼續載入 | 不適用 | PARTIAL，使用者回報短暫空白貼文佔位後會載入內容 |
 | session 重啟、一般貼文規則與互動 | NOT RUN | NOT RUN |
 
 ## 重現與診斷
@@ -36,7 +38,12 @@
 10. `facebook-reels` 規則以 `contentType equals reel` 執行 `hide`。實機確認上方 Reels 分頁入口隱藏，原欄位留下空白背景；Reel 連結通過針對性 fixture 測試，Reels 區塊與動態牆實站樣本尚未驗收。
 11. 手機 `armeabi-v7a` 專用 Facebook APK 為 166,101,277 bytes（約 158 MiB）；建置腳本會依連接裝置 ABI 選擇，未指定 ABI 時仍可產生通用 APK。更新前手機空間不足，`pm trim-caches 1G` 清理可重建快取後安裝成功，沒有清除 App 資料，登入狀態保留。
 12. 驗收只執行 `npm run typecheck`、`tests/facebook-special.test.ts`（1/1 PASS）、Android 雙 APK 建置、簽章及上述實機檢查；未執行完整測試。session 重啟、一般貼文規則與互動尚未驗收。
+13. 隱藏 Facebook 畫面中較高的貼文時，暫放同高度佔位，離開視窗後移除並維持目前閱讀位置。使用者滑過贊助或 Reel 隱藏位置後回報「目前不會」跳動；未宣稱所有版型均已驗證。
+14. 使用者回報容易滑到空白底部，因此在距底部兩個視窗高度內、且頁面有足夠內容時，最多每 2.5 秒向 Facebook 頁面發出一次原有的捲動載入訊號，不改動捲動位置、不直接呼叫 Facebook 私有 API。更新 APK 後，使用者回報先出現短暫空白貼文佔位，接著會載入內容；載入速度仍由 Facebook 與網路決定。
+15. 這輪只重新執行 `npm run typecheck`、`tests/facebook-special.test.ts` 與 `tests/dom.test.ts`（合計 6/6 PASS）、Android 雙 APK 建置；Facebook APK `adb install -r` 成功，冷啟動 `Status: ok`，新版本擴充套件記錄 `gecko-extension-installed`、`gecko-extension-connected`、`gecko-rules-applied`。未執行完整測試。
 
 ## 結論與下一步
 
 Facebook App 已顯示登入後動態牆；底部提示、明確標示的贊助貼文及 Reels 分頁入口均已在實機隱藏。Facebook 內容腳本採用 Mozilla [GeckoView 內嵌 WebExtension](https://firefox-source-docs.mozilla.org/mobile/android/geckoview/consumer/web-extensions.html)，只匹配 Facebook HTTPS 網域，規則透過原生訊息傳給腳本。其他貼文規則與動態牆 Reel 卡片仍需實站驗收。
+
+新版在手機上維持捲動位置並於接近底部時提示 Facebook 提前載入；仍可能短暫顯示 Facebook 自己的空白貼文佔位。腳本無法保證 Facebook 一定提供下一批內容。

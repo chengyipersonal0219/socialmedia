@@ -8,6 +8,7 @@ export interface SiteAdapter {
 }
 
 const keys = new WeakMap<Element, string>();
+const facebookAppPrompts = new WeakSet<Element>();
 let nextKey = 0;
 
 function key(element: Element): string {
@@ -63,8 +64,37 @@ export const instagramAdapter: SiteAdapter = {
 export const facebookAdapter: SiteAdapter = {
   site: 'facebook',
   matches: (url) => url.protocol === 'https:' && ['www.facebook.com', 'm.facebook.com'].includes(url.hostname),
-  findCandidates: (root) => candidates(root, '[role="feed"] [role="article"]'),
+  findCandidates(root) {
+    const found = candidates(root, '[role="feed"] [role="article"]');
+    const controls = candidates(root, 'a, button, [role="button"]');
+    if (root instanceof Element) {
+      const parentControl = root.closest('a, button, [role="button"]');
+      if (parentControl) controls.push(parentControl);
+    }
+    for (const control of controls) {
+      const label = (control.textContent ?? '').replace(/\s+/g, ' ').trim();
+      if (label !== '開啟應用程式') continue;
+      const bounds = control.getBoundingClientRect();
+      if (bounds.width < window.innerWidth * 0.6 || bounds.top < window.innerHeight * 0.65) continue;
+      let container: Element = control;
+      for (let ancestor = control.parentElement; ancestor && ancestor !== document.body; ancestor = ancestor.parentElement) {
+        const position = getComputedStyle(ancestor).position;
+        if (position === 'fixed' || position === 'sticky') { container = ancestor; break; }
+      }
+      facebookAppPrompts.add(container);
+      found.push(container);
+    }
+    return [...new Set(found)];
+  },
   extract(element) {
+    if (facebookAppPrompts.has(element)) {
+      const hasPrompt = [...element.querySelectorAll('a, button, [role="button"]')].some((control) =>
+        (control.textContent ?? '').replace(/\s+/g, ' ').trim() === '開啟應用程式');
+      if (hasPrompt || (element.textContent ?? '').replace(/\s+/g, ' ').trim() === '開啟應用程式') {
+        return { key: key(element), site: 'facebook', contentType: 'unknown', text: '開啟應用程式',
+          isRecommended: 'unknown', isSponsored: 'unknown' };
+      }
+    }
     if (!element.matches('[role="feed"] [role="article"]')) return null;
     const text = visibleText(element);
     return { key: key(element), site: 'facebook', contentType: 'unknown', text: text || undefined,

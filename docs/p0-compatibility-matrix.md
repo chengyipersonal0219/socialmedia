@@ -6,7 +6,7 @@
 | Chrome × Facebook | NOT RUN | NOT RUN | NOT RUN | 原型已建置，實站 NOT RUN | NOT RUN | NOT RUN | PARTIAL |
 | Android WebView × Instagram | 公開登入頁 PASS | NOT RUN | NOT RUN | 隔離注入就緒 PASS | NOT RUN | NOT RUN | PARTIAL |
 | Android WebView × Facebook | 頁面完成載入但畫面空白 FAIL | NOT RUN | NOT RUN | 隔離注入就緒 PASS | NOT RUN | NOT RUN | FAIL |
-| Android GeckoView × Facebook | 公開登入頁 PASS | NOT RUN | NOT RUN | 內嵌擴充套件接收規則 PASS | NOT RUN | NOT RUN | PARTIAL |
+| Android GeckoView × Facebook | 登入後動態牆 PASS | PASS，使用者自行登入 | NOT RUN | 內嵌擴充套件接收規則 PASS；底部提示隱藏 PASS | 貼文 NOT RUN | NOT RUN | PARTIAL |
 
 登入、雙因素驗證、登出、連續捲動、按讚與留言僅能由使用者在實機手動檢查。不得以 fixture 或編譯結果取代實站驗證。
 

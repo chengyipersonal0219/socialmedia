@@ -13,10 +13,12 @@ npm run build
 ./scripts/build-android.ps1
 ```
 
-Chrome 未封裝套件：`Build/browser-extension/`。Android APK：`Build/android/SocialFilter-debug.apk`。後者使用本機 debug key，不適合正式發布。
+Chrome 未封裝套件：`Build/browser-extension/`。Android 有兩個獨立 App：`Build/android/SocialFilter-Instagram-debug.apk` 與 `Build/android/SocialFilter-Facebook-debug.apk`。兩者使用本機 debug key，不適合正式發布。
 
 ## 使用與限制
 
-擴充套件只在指定的 IG／FB HTTPS 網域運作。Options 可編輯、啟停、匯入與匯出 JSON 規則。Android App 提供兩個網站分頁及相同 JSON 格式。未知推薦／贊助狀態會放行。所有資料留在本機；不自動登入或擷取憑證。
+擴充套件只在指定的 IG／FB HTTPS 網域運作。Options 可編輯、啟停、匯入與匯出 JSON 規則。兩個 Android App 各自只開啟對應網站，規則存於各自的 App 私有儲存，並使用相同 JSON 格式手動交換。未知推薦／贊助狀態會放行。所有資料留在本機；不自動登入或擷取憑證。
 
-實站與實機驗收請見 `docs/manual-test-checklist.md`，各階段證據見 `.handoff/codex/social-filter-mvp/`。
+實機 SM-M115F 上，Instagram 公開登入頁可顯示；Facebook WebView 呈現空白，暫不能用於過濾。Facebook App 提供外部瀏覽器入口，但外部頁面不會套用過濾規則。
+
+實站與實機驗收請見 `docs/manual-test-checklist.md` 與 `docs/android-device-acceptance.md`，各階段證據見 `.handoff/codex/social-filter-mvp/`。

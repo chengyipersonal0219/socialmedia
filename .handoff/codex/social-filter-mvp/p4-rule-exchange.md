@@ -15,4 +15,4 @@
 
 ## 限制與下一步
 
-Android 原生規則儲存與匯入已編譯，但需在實機驗證；Chrome Options 需人工載入擴充套件後驗證。兩端 Adapter 實站偵測率仍未知。不可宣稱整體 MVP 完成。
+Android 兩個獨立 App 的規則儲存與匯入已編譯，但需在實機分別驗證；它們透過 JSON 手動交換，不自動同步。Chrome Options 需人工載入擴充套件後驗證。兩端 Adapter 實站偵測率仍未知。不可宣稱整體 MVP 完成。

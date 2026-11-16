@@ -26,7 +26,16 @@ export class DomRuntime {
       for (const record of records) {
         const target = record.target instanceof Element ? record.target : record.target.parentElement;
         if (target && (record.type === 'characterData' || target.closest(this.adapter.site === 'instagram' ? 'main article' : '[role="feed"] [role="article"]'))) this.enqueue(target);
-        for (const node of record.addedNodes) if (node instanceof Element) this.enqueue(node);
+        if (target && this.adapter.site === 'facebook') {
+          for (const [element, state] of this.states) {
+            if (state.action !== 'show' && (element.contains(target) || target.contains(element))) this.pending.add(element);
+          }
+          if (this.pending.size) this.schedule();
+        }
+        for (const node of record.addedNodes) {
+          if (node instanceof Element) this.enqueue(node);
+          else if (this.adapter.site === 'facebook' && node instanceof Text && node.parentElement) this.enqueue(node.parentElement);
+        }
         for (const node of record.removedNodes) if (node instanceof Element) {
           for (const element of this.states.keys()) {
             if (node === element || node.contains(element)) this.pending.add(element);
@@ -80,7 +89,7 @@ export class DomRuntime {
   private process(element: Element): void {
     const previous = this.states.get(element);
     const unit = this.adapter.extract(element);
-    if (!unit) return;
+    if (!unit) { if (previous) this.restore(element); return; }
     const signature = `${this.version}:${JSON.stringify(unit)}`;
     if (previous?.signature === signature) return;
     if (previous) this.restore(element);

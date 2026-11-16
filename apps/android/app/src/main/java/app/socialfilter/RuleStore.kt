@@ -8,7 +8,7 @@ import java.io.File
 
 object RuleStore {
     private const val FILE_NAME = "rules.json"
-    val defaultJson: String = """{"schemaVersion":1,"settings":{"enabled":true,"sites":{"instagram":true,"facebook":true}},"rules":[{"id":"facebook-open-app-prompt","enabled":true,"sites":["facebook"],"match":{"field":"text","operator":"equals","value":"開啟應用程式"},"action":"hide"}]}"""
+    val defaultJson: String = """{"schemaVersion":1,"settings":{"enabled":true,"sites":{"instagram":true,"facebook":true}},"rules":[{"id":"facebook-open-app-prompt","enabled":true,"sites":["facebook"],"match":{"field":"text","operator":"equals","value":"開啟應用程式"},"action":"hide"},{"id":"facebook-sponsored","enabled":true,"sites":["facebook"],"match":{"field":"isSponsored","operator":"equals","value":true},"action":"hide"},{"id":"facebook-reels","enabled":true,"sites":["facebook"],"match":{"field":"contentType","operator":"equals","value":"reel"},"action":"hide"}]}"""
 
     fun validate(raw: String): JSONObject {
         val root = JSONObject(raw)

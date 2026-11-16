@@ -11,14 +11,14 @@
 | P0 可行性 | PARTIAL | Android SM-M115F：Instagram 公開登入頁與隔離注入 PASS；Facebook GeckoView 使用者登入、動態牆與規則傳遞 PASS | Instagram 登入、兩站互動及 Chrome 實站 NOT RUN |
 | P1 共用核心 | PASS | `npm run typecheck` PASS；`tests/core.test.ts` 5/5 PASS | 真實 DOM 偵測不在核心測試範圍 |
 | P2 桌面擴充 | PARTIAL | `npm run build` PASS；`tests/dom.test.ts` 4/4 PASS；200 個 fixture 約 80 ms | Chrome 載入與兩站實際貼文過濾 NOT RUN；DOM 選擇器需實站驗證 |
-| P3 Android | PARTIAL | 兩個獨立 APK 編譯、簽章、安裝與冷啟動 PASS；Facebook 使用者登入、動態牆顯示及底部「開啟應用程式」提示隱藏 PASS | Instagram 登入、session、貼文過濾與互動 NOT RUN；Facebook APK 約 511 MiB |
+| P3 Android | PARTIAL | 兩個獨立 APK 編譯、簽章、安裝與冷啟動 PASS；Facebook 使用者登入、動態牆、底部提示、贊助貼文及 Reels 分頁隱藏 PASS | Instagram 登入、session、其他貼文與動態牆 Reel 卡片過濾及互動 NOT RUN；手機 ABI 專用 Facebook APK 約 158 MiB |
 | P4 規則交換 | PARTIAL | `tests/bundle.test.ts` 1/1 PASS；核心 JSON round-trip、錯誤版本、重複 ID、損壞 JSON 測試 PASS | 兩端 UI 實際匯入／匯出與取消流程 NOT RUN |
 
 ## 建置產物
 
 - Chrome 擴充套件：`Build/browser-extension/`，含 MV3 manifest、內容腳本與 Options 頁。
-- Instagram APK：`Build/android/SocialFilter-Instagram-debug.apk`，10,486,392 bytes，SHA-256 `B53DF3D7986278C4647AE6D5D27FDD5DE30586D224CD27D1B8BF070E47CBC3E3`。
-- Facebook APK：`Build/android/SocialFilter-Facebook-debug.apk`，536,187,888 bytes，SHA-256 `7770B1CDE1A6E6BD18359196D9556F92CE2E2119E7DBEFA558058E09A0B358D9`。
+- Instagram APK：`Build/android/SocialFilter-Instagram-debug.apk`，10,486,421 bytes，SHA-256 `11D2E2B6A53786CA0D452A07D699445C99544202A9A9F6446D6D6ED1366D050B`。
+- Facebook APK：`Build/android/SocialFilter-Facebook-debug.apk`，166,101,277 bytes，SHA-256 `62409FE47B18465C5319423569431F14533D8F3F4276A3721C083A51788FB439`，只含本機 `armeabi-v7a` 原生程式庫。
 - 兩個 APK 以本機 debug key 簽署，分別安裝為 `app.socialfilter.instagram` 與 `app.socialfilter.facebook`；顯式要求 INTERNET，另有 Android 建置時自動加入的 dynamic receiver 權限。
 
 ## 本機提交與 Git
@@ -30,6 +30,7 @@
 - `78558a8` P4 共用 bundle 決策驗證
 - `2eb976c` Android 拆分為兩個獨立 App、修正載入提示與固定雙 APK 輸出
 - `41011d2` Facebook App 改用 GeckoView，修復空白畫面
+- `8e6a5e7` 隱藏 Facebook 底部「開啟應用程式」提示
 
 使用者提供遠端網址後，已設定 `origin` 為 `https://github.com/chengyipersonal0219/socialmedia.git`，並推送 `codex/social-filter-mvp` 分支。沒有執行 CI。
 
@@ -37,4 +38,4 @@
 
 ## 主要限制與下一步
 
-目前可證實的是本地規則決策、fixture DOM 行為、兩個 Android App 的安裝與啟動、Facebook 使用者登入後的動態牆顯示，以及 `facebook-open-app-prompt` 規則在實機隱藏底部提示；**不能宣稱整體 MVP 完成**。一般貼文定位與過濾、session 重啟及互動仍需驗收。外部瀏覽器登入狀態不會帶入 App；外部頁面不套用 App 過濾。詳見 `docs/android-device-acceptance.md`。站點改版可能使 Adapter 失效；未知推薦或贊助狀態預設放行。
+目前可證實的是本地規則決策、fixture DOM 行為、兩個 Android App 的安裝與啟動、Facebook 使用者登入後的動態牆顯示，以及底部提示、明確標示「贊助」的貼文與 Reels 分頁入口在實機隱藏；**不能宣稱整體 MVP 完成**。動態牆 Reel 卡片、其他貼文規則、session 重啟及互動仍需驗收。外部瀏覽器登入狀態不會帶入 App；外部頁面不套用 App 過濾。詳見 `docs/android-device-acceptance.md`。站點改版可能使 Adapter 失效；無法辨識的贊助狀態預設放行。

@@ -4,6 +4,9 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val facebookAbi = providers.gradleProperty("facebookAbi").orNull
+require(facebookAbi == null || facebookAbi in setOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")) { "Unsupported facebookAbi" }
+
 android {
     namespace = "app.socialfilter"
     compileSdk = 36
@@ -27,6 +30,7 @@ android {
             applicationIdSuffix = ".facebook"
             resValue("string", "app_name", "SocialFilter Facebook")
             buildConfigField("String", "SITE", "\"facebook\"")
+            if (facebookAbi != null) ndk { abiFilters.add(facebookAbi) }
         }
     }
     buildFeatures { compose = true; buildConfig = true }

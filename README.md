@@ -1,6 +1,6 @@
 # SocialFilter
 
-本地瀏覽器擴充套件與兩個 Android App，用共用 TypeScript 規則過濾使用者目前瀏覽的貼文。Facebook App 已由使用者登入並顯示動態牆；**貼文定位與過濾仍未驗證，MVP 未完成。**
+本地瀏覽器擴充套件與兩個 Android App，用共用 TypeScript 規則過濾使用者目前瀏覽的貼文。Facebook App 已由使用者登入並顯示動態牆；指定的贊助貼文隱藏已在實機驗證，其他貼文類型仍需驗收。
 
 ## 建置與範圍內測試
 
@@ -8,17 +8,19 @@
 
 ```powershell
 npm run typecheck
-npm run test -- --run tests/core.test.ts tests/dom.test.ts tests/bundle.test.ts
+npm run test -- --run tests/core.test.ts tests/dom.test.ts tests/bundle.test.ts tests/facebook-special.test.ts
 npm run build
 ./scripts/build-android.ps1
 ```
 
 Chrome 未封裝套件：`Build/browser-extension/`。Android 有兩個獨立 App：`Build/android/SocialFilter-Instagram-debug.apk` 與 `Build/android/SocialFilter-Facebook-debug.apk`。兩者使用本機 debug key，不適合正式發布。
 
+連接 Android 手機時，建置腳本會偵測 CPU ABI，讓 Facebook APK 只包含該 ABI 的 GeckoView；也可指定 `./scripts/build-android.ps1 -FacebookAbi armeabi-v7a`。未連接手機且未指定 ABI 時產生通用 APK。SM-M115F 的 `armeabi-v7a` APK 約 158 MiB，不能安裝到其他 ABI 的裝置。
+
 ## 使用與限制
 
 擴充套件只在指定的 IG／FB HTTPS 網域運作。Options 可編輯、啟停、匯入與匯出 JSON 規則。兩個 Android App 各自只開啟對應網站，規則存於各自的 App 私有儲存，並使用相同 JSON 格式手動交換。未知推薦／贊助狀態會放行。所有資料留在本機；不自動登入或擷取憑證。
 
-實機 SM-M115F 上，Instagram 使用 WebView、Facebook 使用 GeckoView，兩個公開登入頁均可顯示；Facebook App 已由使用者登入，動態牆可見，內嵌擴充套件已接收規則。Facebook 預設包含一條只作用於底部「開啟應用程式」提示的隱藏規則，實機已確認提示消失、動態牆仍顯示。Facebook APK 包含 GeckoView 原生引擎，約 511 MiB。外部瀏覽器登入狀態不會自動帶進 App；外部瀏覽器頁面不套用 App 過濾規則。
+實機 SM-M115F 上，Instagram 使用 WebView、Facebook 使用 GeckoView，兩個公開登入頁均可顯示；Facebook App 已由使用者登入，動態牆可見。Facebook 預設隱藏底部「開啟應用程式」提示、標頭明確標為「贊助」的貼文，以及 Reels 分頁與可辨識的 Reel 連結／區塊。底部提示、贊助貼文及 Reels 分頁已通過實機驗收；動態牆 Reel 連結通過針對性 fixture 驗證，Reels 區塊尚未驗收。外部瀏覽器登入狀態不會自動帶進 App；外部瀏覽器頁面不套用 App 過濾規則。
 
 實站與實機驗收請見 `docs/manual-test-checklist.md` 與 `docs/android-device-acceptance.md`，各階段證據見 `.handoff/codex/social-filter-mvp/`。

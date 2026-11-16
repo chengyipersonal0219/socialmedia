@@ -1,8 +1,10 @@
 package app.socialfilter
 
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.webkit.CookieManager
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -54,7 +56,16 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private val allowedOrigins = setOf("https://www.instagram.com", "https://www.facebook.com", "https://m.facebook.com")
+private val targetSite = BuildConfig.SITE
+private val siteLabel = if (targetSite == "instagram") "Instagram" else "Facebook"
+private val targetUrl = if (targetSite == "instagram") "https://www.instagram.com/" else "https://m.facebook.com/"
+private val allowedOrigins = if (targetSite == "instagram") setOf("https://www.instagram.com")
+    else setOf("https://www.facebook.com", "https://m.facebook.com")
+
+private fun debugDiagnostic(context: android.content.Context, message: String) {
+    if ((context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) Log.i("SocialFilter", message)
+}
+
 private fun allowed(url: String?): Boolean {
     val uri = Uri.parse(url ?: return false)
     return uri.scheme == "https" && "https://${uri.host}" in allowedOrigins && (uri.port == -1 || uri.port == 443)
@@ -64,8 +75,8 @@ private fun allowed(url: String?): Boolean {
 private fun SocialFilterApp() {
     val context = LocalContext.current
     val rulesJson = remember { mutableStateOf(RuleStore.read(context)) }
-    val currentSite = remember { mutableStateOf("instagram") }
     val settingsOpen = remember { mutableStateOf(false) }
+    val loading = remember { mutableStateOf(true) }
     val error = remember { mutableStateOf("") }
     val pendingImport = remember { mutableStateOf<String?>(null) }
     val bridgeProxy = remember { mutableStateOf<JavaScriptReplyProxy?>(null) }
@@ -86,10 +97,12 @@ private fun SocialFilterApp() {
             CookieManager.getInstance().setAcceptThirdPartyCookies(this, false)
             val isolatedInjection = WebViewFeature.isFeatureSupported(WebViewFeature.JS_INJECTION_IN_FRAME_AND_WORLD) &&
                 WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)
+            debugDiagnostic(context, "isolated-injection-supported=$isolatedInjection")
             if (isolatedInjection) {
                 val world = WebViewCompat.getExecutionWorld(this, "socialfilter")
                 WebViewCompat.addWebMessageListener(this, "SocialFilterBridge", allowedOrigins, world) { _, message, sourceOrigin, isMainFrame, replyProxy ->
                     if (isMainFrame && allowed(sourceOrigin.toString()) && message.data == "ready") {
+                        debugDiagnostic(context, "isolated-script-ready")
                         bridgeProxy.value = replyProxy
                         replyProxy.postMessage(rulesJson.value)
                     }
@@ -99,6 +112,13 @@ private fun SocialFilterApp() {
             webViewClient = object : WebViewClient() {
                 override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
                     bridgeProxy.value = null
+                    loading.value = true
+                    debugDiagnostic(context, "page-started allowed=${allowed(url)}")
+                }
+                override fun onPageFinished(view: WebView, url: String) {
+                    debugDiagnostic(context, "page-finished allowed=${allowed(url)} size=${view.width}x${view.height}")
+                    view.postDelayed({ loading.value = false }, 3000)
+                    if (targetSite == "facebook" && error.value.isEmpty()) error.value = "若 Facebook 畫面空白，可用外部瀏覽器開啟；外部頁面不套用過濾。"
                 }
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                     if (allowed(request.url.toString())) return false
@@ -108,9 +128,15 @@ private fun SocialFilterApp() {
                     return true
                 }
                 override fun onReceivedError(view: WebView, request: WebResourceRequest, webError: WebResourceError) {
-                    if (request.isForMainFrame) error.value = "頁面無法載入：${webError.errorCode}"
+                    if (request.isForMainFrame) {
+                        debugDiagnostic(context, "main-frame-error=${webError.errorCode}")
+                        loading.value = false
+                        error.value = "頁面無法載入：${webError.errorCode}"
+                    }
                 }
                 override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+                    debugDiagnostic(context, "render-process-gone")
+                    loading.value = false
                     error.value = "網頁程序已停止。可用外部瀏覽器開啟。"
                     return true
                 }
@@ -132,9 +158,7 @@ private fun SocialFilterApp() {
         } catch (exception: Exception) { error.value = "匯出失敗：${exception.message}" }
     }
 
-    LaunchedEffect(currentSite.value) {
-        webView.loadUrl(if (currentSite.value == "instagram") "https://www.instagram.com/" else "https://www.facebook.com/")
-    }
+    LaunchedEffect(Unit) { webView.loadUrl(targetUrl) }
     LaunchedEffect(rulesJson.value) {
         if (allowed(webView.url)) bridgeProxy.value?.postMessage(rulesJson.value)
     }
@@ -145,8 +169,8 @@ private fun SocialFilterApp() {
 
     Column(Modifier.fillMaxSize()) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(8.dp)) {
-            Button(onClick = { currentSite.value = "instagram" }) { Text("Instagram") }
-            Button(onClick = { currentSite.value = "facebook" }) { Text("Facebook") }
+            Text(siteLabel, modifier = Modifier.weight(1f))
+            Button(onClick = { webView.reload() }) { Text("重新載入") }
             Button(onClick = { settingsOpen.value = !settingsOpen.value }) { Text(if (settingsOpen.value) "返回" else "設定") }
         }
         if (error.value.isNotEmpty()) {
@@ -155,8 +179,9 @@ private fun SocialFilterApp() {
                 TextButton(onClick = { if (allowed(webView.url)) context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(webView.url))) }) { Text("外部瀏覽器") }
             }
         }
+        if (loading.value && !settingsOpen.value) Text("$siteLabel 載入中…", modifier = Modifier.padding(horizontal = 12.dp))
         if (settingsOpen.value) {
-            SettingsScreen(rulesJson.value, ::save, { error.value = it }, { importLauncher.launch(arrayOf("application/json")) }, { exportLauncher.launch("socialfilter-rules.json") }, {
+            SettingsScreen(targetSite, rulesJson.value, ::save, { error.value = it }, { importLauncher.launch(arrayOf("application/json")) }, { exportLauncher.launch("socialfilter-rules.json") }, {
                 webView.clearCache(true)
                 WebStorage.getInstance().deleteAllData()
                 CookieManager.getInstance().removeAllCookies {
@@ -164,7 +189,7 @@ private fun SocialFilterApp() {
                     error.value = "已清理 WebView 資料"
                 }
             })
-        } else AndroidView(factory = { webView }, modifier = Modifier.weight(1f))
+        } else AndroidView(factory = { webView }, modifier = Modifier.weight(1f).fillMaxWidth())
     }
     pendingImport.value?.let { imported ->
         val count = JSONObject(imported).getJSONArray("rules").length()
@@ -176,7 +201,7 @@ private fun SocialFilterApp() {
 }
 
 @Composable
-private fun SettingsScreen(json: String, onSave: (String) -> Boolean, onError: (String) -> Unit, onImport: () -> Unit, onExport: () -> Unit, onClear: () -> Unit) {
+private fun SettingsScreen(site: String, json: String, onSave: (String) -> Boolean, onError: (String) -> Unit, onImport: () -> Unit, onExport: () -> Unit, onClear: () -> Unit) {
     val root = remember(json) { JSONObject(json) }
     val rules = root.getJSONArray("rules")
     val settings = root.getJSONObject("settings")
@@ -185,8 +210,6 @@ private fun SettingsScreen(json: String, onSave: (String) -> Boolean, onError: (
     val id = remember { mutableStateOf("") }
     val value = remember { mutableStateOf("") }
     val enabled = remember { mutableStateOf(true) }
-    val instagram = remember { mutableStateOf(true) }
-    val facebook = remember { mutableStateOf(true) }
     val field = remember { mutableStateOf("text") }
     val operator = remember { mutableStateOf("contains") }
     val action = remember { mutableStateOf("collapse") }
@@ -197,8 +220,6 @@ private fun SettingsScreen(json: String, onSave: (String) -> Boolean, onError: (
         id.value = rule?.getString("id") ?: ""
         value.value = rule?.optJSONObject("match")?.get("value")?.toString() ?: ""
         enabled.value = rule?.getBoolean("enabled") ?: true
-        instagram.value = rule?.getJSONArray("sites")?.toString()?.contains("instagram") ?: true
-        facebook.value = rule?.getJSONArray("sites")?.toString()?.contains("facebook") ?: true
         field.value = rule?.getJSONObject("match")?.getString("field") ?: "text"
         operator.value = rule?.getJSONObject("match")?.getString("operator") ?: "contains"
         action.value = rule?.getString("action") ?: "collapse"
@@ -206,7 +227,7 @@ private fun SettingsScreen(json: String, onSave: (String) -> Boolean, onError: (
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("過濾開關", style = MaterialTheme.typography.titleLarge)
-        listOf("全部" to "enabled", "Instagram" to "instagram", "Facebook" to "facebook").forEach { (label, key) ->
+        listOf("過濾總開關" to "enabled", "$siteLabel 過濾" to site).forEach { (label, key) ->
             val checked = if (key == "enabled") settings.getBoolean("enabled") else siteSettings.getBoolean(key)
             Row { Checkbox(checked = checked, onCheckedChange = { selected ->
                 val updated = JSONObject(json)
@@ -218,6 +239,7 @@ private fun SettingsScreen(json: String, onSave: (String) -> Boolean, onError: (
         Text("規則", style = MaterialTheme.typography.titleLarge)
         for (index in 0 until rules.length()) {
             val rule = rules.getJSONObject(index)
+            if (!rule.getJSONArray("sites").toString().contains(site)) continue
             Row { Text("${rule.getString("id")} · ${rule.getString("action")}", modifier = Modifier.weight(1f))
                 TextButton(onClick = { edit(index) }) { Text("編輯") }
                 TextButton(onClick = {
@@ -230,8 +252,6 @@ private fun SettingsScreen(json: String, onSave: (String) -> Boolean, onError: (
         Text(if (editing.value >= 0) "編輯規則" else "新增規則", style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(id.value, { id.value = it }, label = { Text("規則 ID") }, modifier = Modifier.fillMaxWidth())
         Row { Checkbox(enabled.value, { enabled.value = it }); Text("啟用") }
-        Row { Checkbox(instagram.value, { instagram.value = it }); Text("Instagram")
-            Checkbox(facebook.value, { facebook.value = it }); Text("Facebook") }
         Button(onClick = {
             val fields = listOf("text", "authorHandle", "contentType", "isRecommended", "isSponsored")
             field.value = fields[(fields.indexOf(field.value) + 1) % fields.size]
@@ -242,9 +262,7 @@ private fun SettingsScreen(json: String, onSave: (String) -> Boolean, onError: (
         Button(onClick = { action.value = when (action.value) { "collapse" -> "hide"; "hide" -> "allow"; else -> "collapse" } }) { Text("動作：${action.value}") }
         Button(onClick = {
             try {
-                val sites = JSONArray()
-                if (instagram.value) sites.put("instagram")
-                if (facebook.value) sites.put("facebook")
+                val sites = if (editing.value >= 0) rules.getJSONObject(editing.value).getJSONArray("sites") else JSONArray().put(site)
                 val typedValue: Any = if (field.value in listOf("isRecommended", "isSponsored")) {
                     require(value.value in listOf("true", "false")) { "請輸入 true 或 false" }
                     value.value.toBoolean()

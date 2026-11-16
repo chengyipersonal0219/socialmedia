@@ -14,7 +14,22 @@ android {
         versionCode = 1
         versionName = "0.1.0"
     }
-    buildFeatures { compose = true }
+    flavorDimensions += "site"
+    productFlavors {
+        create("instagram") {
+            dimension = "site"
+            applicationIdSuffix = ".instagram"
+            resValue("string", "app_name", "SocialFilter Instagram")
+            buildConfigField("String", "SITE", "\"instagram\"")
+        }
+        create("facebook") {
+            dimension = "site"
+            applicationIdSuffix = ".facebook"
+            resValue("string", "app_name", "SocialFilter Facebook")
+            buildConfigField("String", "SITE", "\"facebook\"")
+        }
+    }
+    buildFeatures { compose = true; buildConfig = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

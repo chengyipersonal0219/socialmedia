@@ -9,10 +9,13 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'JS bundle build failed.' }
     Push-Location -LiteralPath (Join-Path $projectRoot 'apps\android')
     try {
-        & '.\gradlew.bat' ':app:assembleDebug' '--no-daemon'
+        & '.\gradlew.bat' ':app:assembleInstagramDebug' ':app:assembleFacebookDebug' '--no-daemon'
         if ($LASTEXITCODE -ne 0) { throw 'Android build failed.' }
     } finally { Pop-Location }
     $destination = Join-Path $projectRoot 'Build\android'
     New-Item -ItemType Directory -Force -Path $destination | Out-Null
-    Copy-Item -LiteralPath (Join-Path $projectRoot 'apps\android\app\build\outputs\apk\debug\app-debug.apk') -Destination (Join-Path $destination 'SocialFilter-debug.apk') -Force
+    Copy-Item -LiteralPath (Join-Path $projectRoot 'apps\android\app\build\outputs\apk\instagram\debug\app-instagram-debug.apk') -Destination (Join-Path $destination 'SocialFilter-Instagram-debug.apk') -Force
+    Copy-Item -LiteralPath (Join-Path $projectRoot 'apps\android\app\build\outputs\apk\facebook\debug\app-facebook-debug.apk') -Destination (Join-Path $destination 'SocialFilter-Facebook-debug.apk') -Force
+    $legacyApk = Join-Path $destination 'SocialFilter-debug.apk'
+    if (Test-Path -LiteralPath $legacyApk) { Remove-Item -LiteralPath $legacyApk }
 } finally { Pop-Location }

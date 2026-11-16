@@ -32,7 +32,7 @@
 - `41011d2` Facebook App 改用 GeckoView，修復空白畫面
 - `8e6a5e7` 隱藏 Facebook 底部「開啟應用程式」提示
 
-使用者指定後，後續工作改在 `main` 直接提交及推送，並已寫入根目錄 `AGENTS.md`。`main` 已推送並追蹤 `origin/main`；原 `codex/social-filter-mvp` 的提交是 `main` 的祖先。GitHub 遠端預設分支仍為 `codex/social-filter-mvp`：目前憑證只有 push 權限、沒有 admin 權限，修改預設分支的 API 回傳 HTTP 404，需要儲存庫管理員在 GitHub Settings → Branches 將預設分支改成 `main`。沒有執行 CI。
+使用者指定後，後續工作改在 `main` 直接提交及推送，並已寫入根目錄 `AGENTS.md`。`main` 已推送並追蹤 `origin/main`；原 `codex/social-filter-mvp` 的提交是 `main` 的祖先。使用者登入具有 ADMIN 權限的 `chengyipersonal0219` 帳號後，透過 GitHub CLI 將遠端預設分支改成 `main`；`gh repo view` 與 `git ls-remote --symref origin HEAD` 均確認生效。沒有執行 CI。
 
 附檔要求禁止遠端寫入，而使用者提供的 AGENTS 指示要求驗收後 push；以使用者指示及後續提供的儲存庫網址為準。未建立 PR 或部署服務。
 

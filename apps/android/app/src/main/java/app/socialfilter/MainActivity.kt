@@ -1,17 +1,8 @@
 package app.socialfilter
 
 import android.content.Intent
-import android.content.pm.ApplicationInfo
 import android.net.Uri
 import android.os.Bundle
-import android.util.Log
-import android.webkit.CookieManager
-import android.webkit.WebResourceError
-import android.webkit.WebResourceRequest
-import android.webkit.WebView
-import android.webkit.WebViewClient
-import android.webkit.WebStorage
-import android.webkit.RenderProcessGoneDetail
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -43,9 +34,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.webkit.WebViewCompat
-import androidx.webkit.WebViewFeature
-import androidx.webkit.JavaScriptReplyProxy
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -58,18 +46,6 @@ class MainActivity : ComponentActivity() {
 
 private val targetSite = BuildConfig.SITE
 private val siteLabel = if (targetSite == "instagram") "Instagram" else "Facebook"
-private val targetUrl = if (targetSite == "instagram") "https://www.instagram.com/" else "https://m.facebook.com/"
-private val allowedOrigins = if (targetSite == "instagram") setOf("https://www.instagram.com")
-    else setOf("https://www.facebook.com", "https://m.facebook.com")
-
-private fun debugDiagnostic(context: android.content.Context, message: String) {
-    if ((context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) Log.i("SocialFilter", message)
-}
-
-private fun allowed(url: String?): Boolean {
-    val uri = Uri.parse(url ?: return false)
-    return uri.scheme == "https" && "https://${uri.host}" in allowedOrigins && (uri.port == -1 || uri.port == 443)
-}
 
 @Composable
 private fun SocialFilterApp() {
@@ -79,70 +55,13 @@ private fun SocialFilterApp() {
     val loading = remember { mutableStateOf(true) }
     val error = remember { mutableStateOf("") }
     val pendingImport = remember { mutableStateOf<String?>(null) }
-    val bridgeProxy = remember { mutableStateOf<JavaScriptReplyProxy?>(null) }
-    val script = remember { context.assets.open("filter.js").bufferedReader().use { it.readText() } }
 
     fun save(raw: String): Boolean {
         return try { rulesJson.value = RuleStore.save(context, raw); error.value = "規則已儲存"; true }
         catch (exception: Exception) { error.value = "儲存失敗：${exception.message}"; false }
     }
 
-    val webView = remember {
-        WebView(context).apply {
-            settings.javaScriptEnabled = true
-            settings.domStorageEnabled = true
-            settings.allowFileAccess = false
-            settings.allowContentAccess = false
-            settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
-            CookieManager.getInstance().setAcceptThirdPartyCookies(this, false)
-            val isolatedInjection = WebViewFeature.isFeatureSupported(WebViewFeature.JS_INJECTION_IN_FRAME_AND_WORLD) &&
-                WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)
-            debugDiagnostic(context, "isolated-injection-supported=$isolatedInjection")
-            if (isolatedInjection) {
-                val world = WebViewCompat.getExecutionWorld(this, "socialfilter")
-                WebViewCompat.addWebMessageListener(this, "SocialFilterBridge", allowedOrigins, world) { _, message, sourceOrigin, isMainFrame, replyProxy ->
-                    if (isMainFrame && allowed(sourceOrigin.toString()) && message.data == "ready") {
-                        debugDiagnostic(context, "isolated-script-ready")
-                        bridgeProxy.value = replyProxy
-                        replyProxy.postMessage(rulesJson.value)
-                    }
-                }
-                WebViewCompat.addJavaScriptOnEvent(this, script, WebViewCompat.INJECTION_EVENT_DOCUMENT_START, allowedOrigins, world)
-            } else error.value = "此 WebView 不支援安全腳本注入，網頁目前未過濾"
-            webViewClient = object : WebViewClient() {
-                override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
-                    bridgeProxy.value = null
-                    loading.value = true
-                    debugDiagnostic(context, "page-started allowed=${allowed(url)}")
-                }
-                override fun onPageFinished(view: WebView, url: String) {
-                    debugDiagnostic(context, "page-finished allowed=${allowed(url)} size=${view.width}x${view.height}")
-                    view.postDelayed({ loading.value = false }, 3000)
-                    if (targetSite == "facebook" && error.value.isEmpty()) error.value = "若 Facebook 畫面空白，可用外部瀏覽器開啟；外部頁面不套用過濾。"
-                }
-                override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-                    if (allowed(request.url.toString())) return false
-                    if (request.isForMainFrame && request.url.scheme in listOf("http", "https")) {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, request.url))
-                    } else if (request.isForMainFrame) error.value = "已阻擋不支援的連結"
-                    return true
-                }
-                override fun onReceivedError(view: WebView, request: WebResourceRequest, webError: WebResourceError) {
-                    if (request.isForMainFrame) {
-                        debugDiagnostic(context, "main-frame-error=${webError.errorCode}")
-                        loading.value = false
-                        error.value = "頁面無法載入：${webError.errorCode}"
-                    }
-                }
-                override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
-                    debugDiagnostic(context, "render-process-gone")
-                    loading.value = false
-                    error.value = "網頁程序已停止。可用外部瀏覽器開啟。"
-                    return true
-                }
-            }
-        }
-    }
+    val browser = remember { Browser(context, { rulesJson.value }, { loading.value = it }, { error.value = it }) }
 
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) try {
@@ -158,38 +77,31 @@ private fun SocialFilterApp() {
         } catch (exception: Exception) { error.value = "匯出失敗：${exception.message}" }
     }
 
-    LaunchedEffect(Unit) { webView.loadUrl(targetUrl) }
-    LaunchedEffect(rulesJson.value) {
-        if (allowed(webView.url)) bridgeProxy.value?.postMessage(rulesJson.value)
-    }
-    DisposableEffect(webView) { onDispose { webView.destroy() } }
-    BackHandler(settingsOpen.value || webView.canGoBack()) {
-        if (settingsOpen.value) settingsOpen.value = false else webView.goBack()
+    LaunchedEffect(Unit) { browser.load() }
+    LaunchedEffect(rulesJson.value) { browser.updateRules(rulesJson.value) }
+    DisposableEffect(browser) { onDispose { browser.dispose() } }
+    BackHandler(settingsOpen.value || browser.canGoBack) {
+        if (settingsOpen.value) settingsOpen.value = false else browser.goBack()
     }
 
     Column(Modifier.fillMaxSize()) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(8.dp)) {
             Text(siteLabel, modifier = Modifier.weight(1f))
-            Button(onClick = { webView.reload() }) { Text("重新載入") }
+            Button(onClick = { browser.reload() }) { Text("重新載入") }
             Button(onClick = { settingsOpen.value = !settingsOpen.value }) { Text(if (settingsOpen.value) "返回" else "設定") }
         }
         if (error.value.isNotEmpty()) {
             Row(modifier = Modifier.padding(horizontal = 8.dp)) {
                 Text(error.value, modifier = Modifier.weight(1f))
-                TextButton(onClick = { if (allowed(webView.url)) context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(webView.url))) }) { Text("外部瀏覽器") }
+                TextButton(onClick = { browser.currentUrl?.let { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(it))) } }) { Text("外部瀏覽器") }
             }
         }
         if (loading.value && !settingsOpen.value) Text("$siteLabel 載入中…", modifier = Modifier.padding(horizontal = 12.dp))
         if (settingsOpen.value) {
             SettingsScreen(targetSite, rulesJson.value, ::save, { error.value = it }, { importLauncher.launch(arrayOf("application/json")) }, { exportLauncher.launch("socialfilter-rules.json") }, {
-                webView.clearCache(true)
-                WebStorage.getInstance().deleteAllData()
-                CookieManager.getInstance().removeAllCookies {
-                    CookieManager.getInstance().flush()
-                    error.value = "已清理 WebView 資料"
-                }
+                browser.clearData { error.value = "已清理瀏覽資料" }
             })
-        } else AndroidView(factory = { webView }, modifier = Modifier.weight(1f).fillMaxWidth())
+        } else AndroidView(factory = { browser.view }, modifier = Modifier.weight(1f).fillMaxWidth())
     }
     pendingImport.value?.let { imported ->
         val count = JSONObject(imported).getJSONArray("rules").length()
@@ -278,6 +190,6 @@ private fun SettingsScreen(site: String, json: String, onSave: (String) -> Boole
         }) { Text("儲存規則") }
         Text("推薦與贊助偵測若無法辨識，會保留原始貼文。")
         Row { Button(onClick = onImport) { Text("匯入 JSON") }; Button(onClick = onExport) { Text("匯出 JSON") } }
-        Button(onClick = onClear) { Text("清理 WebView 資料") }
+        Button(onClick = onClear) { Text("清理瀏覽資料") }
     }
 }

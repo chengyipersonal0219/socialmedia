@@ -43,4 +43,5 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.webkit:webkit:1.18.0")
+    add("facebookImplementation", "org.mozilla.geckoview:geckoview:153.0.20260810162159")
 }

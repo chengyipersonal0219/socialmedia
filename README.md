@@ -4,7 +4,7 @@
 
 ## 建置與範圍內測試
 
-需要 Node 24、pnpm 11、JDK 21、Android SDK API 36。先安裝依賴：`pnpm install`。目前開發環境的 pnpm 安裝腳本政策會拒絕 esbuild postinstall；本機已安裝套件並使用 `npm run` 指令執行後續步驟。
+需要 Node 24、pnpm 11、JDK 21、Android SDK API 36。先以 `pnpm install --frozen-lockfile --ignore-scripts` 安裝依賴；此命令在目前環境通過，esbuild 平台執行檔仍可用。一般 `pnpm install` 會受目前環境的套件安裝腳本政策阻擋。後續使用 `npm run` 執行腳本。
 
 ```powershell
 npm run typecheck

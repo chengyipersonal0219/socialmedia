@@ -30,7 +30,7 @@
 4. 原本 Facebook 的 Android WebView 在此裝置回報載入完成卻呈現空白；停用過濾腳本也一樣。使用者在外部瀏覽器登入後，App 仍空白；外部登入狀態本來也不會自動共享給 App。
 5. 獨立 GeckoView 測試 App 在同一手機顯示 Facebook 公開登入頁。因此 Facebook 獨立 App 改用 GeckoView 153；Instagram 仍使用 WebView。測試 App 已移除。
 6. 更新後兩個 APK 均安裝並冷啟動成功，公開登入頁均可見。Instagram Debug 記錄 `isolated-injection-supported=true` 與 `isolated-script-ready`；Facebook 記錄 `gecko-extension-installed`、`gecko-extension-connected`、`gecko-rules-applied`。診斷不含網址路徑、頁面原文、Cookie、Token 或帳密。
-7. 使用者在 Facebook App 內自行登入後，實機可見動態牆；登入後記錄 `gecko-extension-connected` 與 `gecko-rules-applied`。沒有記錄畫面中的個人資料或貼文內容。
+7. 使用者在 Facebook App 內自行登入後，實機可見動態牆；登入後記錄 `gecko-extension-connected` 與 `gecko-rules-applied`。報告與 Git 不含畫面中的個人資料或貼文內容。驗收截圖暫存於本機 Git 忽略的 `Build/android/device-screen.png` 與手機的 `/sdcard/socialfilter_current.png`；工具自動審核以「blocked by policy」拒絕刪除本機截圖，均未推送。
 8. 新增規則 `facebook-open-app-prompt`：Facebook 限定、`text equals 開啟應用程式`、`hide`。Adapter 只將畫面底部寬幅提示納入候選，避免把同文字的貼文當成提示。重新安裝且保留登入資料後，實機確認底部按鈕消失、動態牆仍顯示。
 9. Facebook 實機 DOM 沒有 `[role="feed"]` 或 `[role="article"]`。對照可見的贊助標記位置，只在貼文標頭辨識「贊助」／`Sponsored`，再選擇該貼文容器；不以內文提及「贊助」作判斷。`facebook-sponsored` 規則以 `isSponsored equals true` 執行 `hide`。實機確認贊助容器隱藏、一般貼文仍顯示。
 10. `facebook-reels` 規則以 `contentType equals reel` 執行 `hide`。實機確認上方 Reels 分頁入口隱藏，原欄位留下空白背景；Reel 連結通過針對性 fixture 測試，Reels 區塊與動態牆實站樣本尚未驗收。
